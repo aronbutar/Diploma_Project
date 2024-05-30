@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Diagnosis Results</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="container">
+    <h1>Diagnosis Results</h1>
+    {% for diagnosis in diagnoses %}
+    <h2>Patient: {{ diagnosis.patient }}</h2>
+    <ul class="list-group">
+        {% for d in diagnosis.diagnoses %}
+        <li class="list-group-item">{{ d.diagnosis }} - Membership: {{ d.membership }}, Non-membership: {{ d.non_membership }}, SR: {{ d.SR }}</li>
+        {% endfor %}
+    </ul>
+    {% endfor %}
+    <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Home</a>
+</body>
+</html>
