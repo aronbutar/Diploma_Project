@@ -5,16 +5,24 @@
     <title>Diagnosis Results</title>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body class="container">
-    <h1>Diagnosis Results</h1>
+<body class="container mt-5">
+    <h1 class="text-center mb-4">Diagnosis Results</h1>
     {% for diagnosis in diagnoses %}
-    <h2>Patient: {{ diagnosis.patient }}</h2>
-    <ul class="list-group">
-        {% for d in diagnosis.diagnoses %}
-        <li class="list-group-item">{{ d.diagnosis }} - Membership: {{ d.membership }}, Non-membership: {{ d.non_membership }}, SR: {{ d.SR }}</li>
-        {% endfor %}
-    </ul>
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2>Patient: {{ diagnosis.patient }}</h2>
+        </div>
+        <div class="card-body">
+            <ul class="list-group">
+                {% for d in diagnosis.diagnoses %}
+                <li class="list-group-item">{{ d.diagnosis }} - Membership: {{ d.membership }}, Non-membership: {{ d.non_membership }}, SR: {{ d.SR }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
     {% endfor %}
-    <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Home</a>
+    <div class="text-center">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to Home</a>
+    </div>
 </body>
 </html>

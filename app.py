@@ -5,8 +5,8 @@ import logging
 from flask import Flask, request, render_template, redirect, url_for, send_file, flash
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, FloatField
-from wtforms.validators import DataRequired
+from wtforms import StringField, PasswordField, SubmitField
+from wtforms.validators import DataRequired, NumberRange
 from werkzeug.utils import secure_filename
 import csv
 import os
@@ -49,12 +49,12 @@ class LoginForm(FlaskForm):
 class MedicalDiagnosis:
     def __init__(self, db_path='medical_diagnosis.db'):
         self.db_path = db_path
-        self.symptoms = ["Fever (°C)", "Headache (Severity 0-5)", "Stomach pain (Severity 0-5)", "Cough (Severity 0-5)", "Chest pain (Severity 0-5)"]
-        self.diagnoses = ["Viral Fever", "Malaria", "Typhoid", "Stomach problem", "Heart problem"]
+        self.symptoms = ['Fever', 'Headache', 'Cough', 'Fatigue', 'Sore Throat', 'Shortness of Breath', 'Nausea']
+        self.diagnostics = ['Unknown', 'Respiratory_allergy', 'Common_cold', 'Mild_viral_infection', 'Sinusitis', 'Flu', 'Bronchitis', 'Bacterial_infection', 'Pneumonia']
         self.init_db()
 
-        self.R_membership = np.random.rand(len(self.symptoms), len(self.diagnoses))
-        self.R_non_membership = np.random.rand(len(self.symptoms), len(self.diagnoses))
+        self.R_membership = np.random.rand(len(self.symptoms), len(self.diagnostics))
+        self.R_non_membership = np.random.rand(len(self.symptoms), len(self.diagnostics))
 
         logging.info("MedicalDiagnosis initialized.")
 
@@ -115,7 +115,7 @@ md = MedicalDiagnosis()
 @login_required
 def index():
     patients = md.get_patients()
-    return render_template('index.html', patients=patients, symptoms=md.symptoms, diagnoses=md.diagnoses)
+    return render_template('index.html', patients=patients, symptoms=md.symptoms, diagnostics=md.diagnostics)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -128,7 +128,7 @@ def login():
             login_user(user)
             return redirect(url_for('index'))
         else:
-            flash('Invalid username or password')
+            flash('Invalid username or password', 'danger')
     return render_template('login.html', form=form)
 
 @app.route('/logout')
@@ -143,13 +143,18 @@ def add_patient():
     name = request.form['name']
     symptoms = []
     for symptom in md.symptoms:
-        value = float(request.form[symptom])
-        if "Fever" in symptom:
-            normalized_value = md.normalize(value, 36, 41)
-        else:
-            normalized_value = md.normalize(value, 0, 5)
-        symptoms.append(normalized_value)
+        try:
+            value = float(request.form[symptom])
+            if value < 0 or value > 5:
+                flash(f"Invalid value for {symptom}. Please enter a value between 0 and 5.", 'danger')
+                return redirect(url_for('index'))
+            normalized_value = md.normalize(value, 0, 5)  # Adjust normalization as needed for symptoms
+            symptoms.append(normalized_value)
+        except ValueError:
+            flash(f"Invalid input for {symptom}. Please enter a numeric value.", 'danger')
+            return redirect(url_for('index'))
     md.add_patient(name, symptoms)
+    flash('Patient added successfully!', 'success')
     return redirect(url_for('index'))
 
 @app.route('/diagnose')
@@ -160,14 +165,22 @@ def diagnose():
     Q_non_membership = []
     patient_names = []
 
+    logging.info(f"Patients data: {patients_data}")
+
     for patient in patients_data:
         name, symptoms = patient[1], json.loads(patient[2])
         patient_names.append(name)
         Q_membership.append(symptoms)
         Q_non_membership.append([1-s for s in symptoms])
 
+    logging.info(f"Q_membership: {Q_membership}")
+    logging.info(f"Q_non_membership: {Q_non_membership}")
+
     Q_membership = np.array(Q_membership)
     Q_non_membership = np.array(Q_non_membership)
+
+    logging.info(f"Q_membership array shape: {Q_membership.shape}")
+    logging.info(f"Q_non_membership array shape: {Q_non_membership.shape}")
 
     iterations = 3
     for iteration in range(iterations):
@@ -177,7 +190,7 @@ def diagnose():
     diagnoses = []
     for i, patient in enumerate(patient_names):
         patient_diagnoses = []
-        for j, diagnosis in enumerate(md.diagnoses):
+        for j, diagnosis in enumerate(md.diagnostics):
             patient_diagnoses.append({
                 'diagnosis': diagnosis,
                 'membership': T_membership[i, j],
@@ -212,6 +225,7 @@ def import_data():
             name = row['name']
             symptoms = json.loads(row['symptoms'])
             md.add_patient(name, symptoms)
+    flash('Data imported successfully!', 'success')
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
