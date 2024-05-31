@@ -5,32 +5,77 @@
     <title>Medical Diagnosis</title>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body class="container">
-    <h1>Medical Diagnosis</h1>
-    <h2>Add Patient</h2>
-    <form action="{{ url_for('add_patient') }}" method="post" class="form-group">
-        <label for="name">Patient Name:</label>
-        <input type="text" id="name" name="name" class="form-control" required><br><br>
-        {% for symptom in symptoms %}
-        <label for="{{ symptom }}">{{ symptom }}:</label>
-        <input type="number" step="any" id="{{ symptom }}" name="{{ symptom }}" class="form-control" required><br><br>
-        {% endfor %}
-        <input type="submit" value="Add Patient" class="btn btn-primary">
-    </form>
-    <h2>Existing Patients</h2>
-    <ul class="list-group">
-        {% for patient in patients %}
-        <li class="list-group-item">{{ patient[1] }}: {{ patient[2] }}</li>
-        {% endfor %}
-    </ul>
-    <h2>Diagnosis</h2>
-    <a href="{{ url_for('diagnose') }}" class="btn btn-success">Diagnose Patients</a>
-    <h2>Export and Import Data</h2>
-    <a href="{{ url_for('export_data') }}" class="btn btn-info">Export Data</a>
-    <form action="{{ url_for('import_data') }}" method="post" enctype="multipart/form-data" class="form-group">
-        <input type="file" name="file" class="form-control-file">
-        <input type="submit" value="Import Data" class="btn btn-warning">
-    </form>
-    <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
+<body class="container mt-5">
+    <h1 class="text-center mb-4">Medical Diagnosis</h1>
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2>Add Patient</h2>
+        </div>
+        <div class="card-body">
+            <form action="{{ url_for('add_patient') }}" method="post">
+                <div class="form-group">
+                    <label for="name">Patient Name:</label>
+                    <input type="text" id="name" name="name" class="form-control" required>
+                </div>
+                {% for symptom in symptoms %}
+                <div class="form-group">
+                    <label for="{{ symptom }}">{{ symptom }} (0-5):</label>
+                    <input type="number" step="0.1" id="{{ symptom }}" name="{{ symptom }}" class="form-control" min="0" max="5" required>
+                </div>
+                {% endfor %}
+                <input type="submit" value="Add Patient" class="btn btn-primary">
+            </form>
+        </div>
+    </div>
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2>Existing Patients</h2>
+        </div>
+        <div class="card-body">
+            <ul class="list-group">
+                {% for patient in patients %}
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>{{ patient[1] }}</span>
+                        <button class="btn btn-info btn-sm" data-toggle="collapse" data-target="#symptoms-{{ patient[0] }}" aria-expanded="false" aria-controls="symptoms-{{ patient[0] }}">View Symptoms</button>
+                    </div>
+                    <div class="collapse mt-2" id="symptoms-{{ patient[0] }}">
+                        <div class="card card-body">
+                            {{ patient[2] }}
+                        </div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2>Diagnosis</h2>
+        </div>
+        <div class="card-body">
+            <a href="{{ url_for('diagnose') }}" class="btn btn-success">Diagnose Patients</a>
+        </div>
+    </div>
+    <div class="card mb-4">
+        <div class="card-header">
+            <h2>Export and Import Data</h2>
+        </div>
+        <div class="card-body">
+            <a href="{{ url_for('export_data') }}" class="btn btn-info mb-2">Export Data</a>
+            <form action="{{ url_for('import_data') }}" method="post" enctype="multipart/form-data">
+                <div class="form-group">
+                    <input type="file" name="file" class="form-control-file">
+                </div>
+                <input type="submit" value="Import Data" class="btn btn-warning">
+            </form>
+        </div>
+    </div>
+    <div class="text-center">
+        <a href="{{ url_for('logout') }}" class="btn btn-danger">Logout</a>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
