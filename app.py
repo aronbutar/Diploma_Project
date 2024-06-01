@@ -1,22 +1,26 @@
+import os
 import numpy as np
 import sqlite3
 import json
 import logging
-from flask import Flask, request, render_template, redirect, url_for, send_file, flash
+from flask import Flask, request, render_template, redirect, url_for, send_file, flash, jsonify, session
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, SubmitField
-from wtforms.validators import DataRequired, NumberRange
+from wtforms.validators import DataRequired
 from werkzeug.utils import secure_filename
 import csv
-import os
 
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', filename='diagnosis.log', filemode='w')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', filename='diagnosis.log', filemode='w')
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'
-app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+
+# Ensure the upload folder exists
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -61,8 +65,9 @@ class MedicalDiagnosis:
     def init_db(self):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
+        cursor.execute('DROP TABLE IF EXISTS patients')  # Drop the table if it exists
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS patients (
+            CREATE TABLE patients (
                 id INTEGER PRIMARY KEY,
                 name TEXT,
                 symptoms TEXT
@@ -86,6 +91,7 @@ class MedicalDiagnosis:
         cursor.execute('SELECT * FROM patients')
         rows = cursor.fetchall()
         conn.close()
+        logging.info(f"Fetched patients data: {rows}")
         return rows
 
     def normalize(self, value, min_value, max_value):
@@ -135,6 +141,7 @@ def login():
 @login_required
 def logout():
     logout_user()
+    session.clear()
     return redirect(url_for('login'))
 
 @app.route('/add_patient', methods=['POST'])
@@ -157,63 +164,79 @@ def add_patient():
     flash('Patient added successfully!', 'success')
     return redirect(url_for('index'))
 
-@app.route('/diagnose')
+@app.route('/get_patients', methods=['GET'])
 @login_required
-def diagnose():
-    patients_data = md.get_patients()
-    Q_membership = []
-    Q_non_membership = []
-    patient_names = []
+def get_patients():
+    patients = md.get_patients()
+    patient_list = [{'id': patient[0], 'name': patient[1]} for patient in patients]
+    return jsonify(patient_list)
 
-    logging.info(f"Patients data: {patients_data}")
+@app.route('/diagnose_patient/<int:patient_id>')
+@login_required
+def diagnose_patient(patient_id):
+    try:
+        patients_data = md.get_patients()
+        patient_data = next((p for p in patients_data if p[0] == patient_id), None)
+        if not patient_data:
+            flash('Patient not found.', 'warning')
+            return redirect(url_for('index'))
+        
+        name, symptoms = patient_data[1], json.loads(patient_data[2])
+        Q_membership = np.array([symptoms])
+        Q_non_membership = np.array([[1-s for s in symptoms]])
 
-    for patient in patients_data:
-        name, symptoms = patient[1], json.loads(patient[2])
-        patient_names.append(name)
-        Q_membership.append(symptoms)
-        Q_non_membership.append([1-s for s in symptoms])
+        logging.info(f"Q_membership: {Q_membership}")
+        logging.info(f"Q_non_membership: {Q_non_membership}")
 
-    logging.info(f"Q_membership: {Q_membership}")
-    logging.info(f"Q_non_membership: {Q_non_membership}")
+        if not Q_membership.size or not Q_non_membership.size:
+            flash('No valid symptoms data found.', 'warning')
+            return redirect(url_for('index'))
 
-    Q_membership = np.array(Q_membership)
-    Q_non_membership = np.array(Q_non_membership)
+        iterations = 3
+        for iteration in range(iterations):
+            logging.info(f"Iteration {iteration+1}")
+            T_membership, T_non_membership = md.max_min_max_composition((Q_membership, Q_non_membership), (md.R_membership, md.R_non_membership))
+            SR = md.calculate_SR((T_membership, T_non_membership))
 
-    logging.info(f"Q_membership array shape: {Q_membership.shape}")
-    logging.info(f"Q_non_membership array shape: {Q_non_membership.shape}")
-
-    iterations = 3
-    for iteration in range(iterations):
-        T_membership, T_non_membership = md.max_min_max_composition((Q_membership, Q_non_membership), (md.R_membership, md.R_non_membership))
-        SR = md.calculate_SR((T_membership, T_non_membership))
-
-    diagnoses = []
-    for i, patient in enumerate(patient_names):
-        patient_diagnoses = []
+        diagnoses = []
         for j, diagnosis in enumerate(md.diagnostics):
-            patient_diagnoses.append({
+            diagnoses.append({
                 'diagnosis': diagnosis,
-                'membership': T_membership[i, j],
-                'non_membership': T_non_membership[i, j],
-                'SR': SR[i, j]
+                'membership': T_membership[0, j],
+                'non_membership': T_non_membership[0, j],
+                'SR': SR[0, j]
             })
-        diagnoses.append({'patient': patient, 'diagnoses': patient_diagnoses})
 
-    return render_template('diagnosis.html', diagnoses=diagnoses)
+        logging.info(f"Diagnoses for patient {name}: {diagnoses}")
+        return render_template('diagnosis.html', diagnoses=[{'patient': name, 'diagnoses': diagnoses}])
+    except Exception as e:
+        logging.error(f"Error during diagnosis: {e}")
+        flash('An error occurred during diagnosis.', 'danger')
+        return redirect(url_for('index'))
 
 @app.route('/export')
 @login_required
 def export_data():
     patients = md.get_patients()
-    with open('patients.csv', 'w', newline='') as csvfile:
-        fieldnames = ['id', 'name', 'symptoms']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+    export_path = os.path.join(app.config['UPLOAD_FOLDER'], 'patients.csv')
+    logging.info(f"Export path: {export_path}")
+    
+    try:
+        with open(export_path, 'w', newline='') as csvfile:
+            fieldnames = ['id', 'name', 'symptoms']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
-        writer.writeheader()
-        for patient in patients:
-            writer.writerow({'id': patient[0], 'name': patient[1], 'symptoms': patient[2]})
+            writer.writeheader()
+            for patient in patients:
+                writer.writerow({'id': patient[0], 'name': patient[1], 'symptoms': patient[2]})
 
-    return send_file('patients.csv', as_attachment=True)
+        logging.info(f"Exported data to {export_path}")
+    except Exception as e:
+        logging.error(f"Failed to write CSV file: {e}")
+        flash('Failed to export data.', 'danger')
+        return redirect(url_for('index'))
+
+    return send_file(export_path, as_attachment=True)
 
 @app.route('/import', methods=['POST'])
 @login_required
