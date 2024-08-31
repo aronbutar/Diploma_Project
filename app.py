@@ -95,40 +95,28 @@ class MedicalDiagnosis:
 
         # Rules
         self.rules = [
-            # Healthy
+
             ctrl.Rule(self.temperature['low'] & self.cough['low'] & self.fatigue['low'], self.diagnosis['healthy']),
-            
-            # Common Cold
             ctrl.Rule(self.temperature['medium'] & self.headache['low'] & self.sore_throat['medium'], self.diagnosis['common_cold']),
             ctrl.Rule(self.temperature['medium'] & self.cough['medium'] & self.sore_throat['medium'], self.diagnosis['common_cold']),
             ctrl.Rule(self.temperature['medium'] & self.cough['medium'] & self.fatigue['medium'], self.diagnosis['common_cold']),
-            
-            # Flu
             ctrl.Rule(self.temperature['high'] & self.cough['high'] & self.headache['medium'], self.diagnosis['flu']),
             ctrl.Rule(self.temperature['high'] & self.cough['high'] & self.fatigue['medium'], self.diagnosis['flu']),
             ctrl.Rule(self.temperature['medium'] & self.fatigue['high'] & self.sore_throat['high'], self.diagnosis['flu']),
-            
-            # Allergy
             ctrl.Rule(self.temperature['low'] & self.cough['low'] & self.sore_throat['medium'], self.diagnosis['allergy']),
             ctrl.Rule(self.temperature['medium'] & self.headache['medium'] & self.sore_throat['high'], self.diagnosis['allergy']),
             ctrl.Rule(self.temperature['high'] & self.headache['low'] & self.cough['low'], self.diagnosis['allergy']),
-            
-            # Bronchitis
             ctrl.Rule(self.temperature['high'] & self.cough['high'] & self.fatigue['medium'], self.diagnosis['bronchitis']),
             ctrl.Rule(self.temperature['medium'] & self.cough['high'] & self.headache['high'], self.diagnosis['bronchitis']),
             ctrl.Rule(self.temperature['low'] & self.headache['high'] & self.fatigue['high'], self.diagnosis['bronchitis']),
             ctrl.Rule(self.temperature['high'] & self.cough['high'] & self.headache['medium'], self.diagnosis['bronchitis']),
             ctrl.Rule(self.temperature['low'] & self.cough['high'] & self.sore_throat['high'], self.diagnosis['bronchitis']),
             ctrl.Rule(self.temperature['medium'] & self.cough['medium'] & self.fatigue['high'], self.diagnosis['bronchitis']),
-            
-            # Pneumonia
             ctrl.Rule(self.temperature['very_high'] & self.cough['very_high'] & self.headache['very_high'] & self.fatigue['very_high'] & self.sore_throat['very_high'], self.diagnosis['pneumonia']),
             ctrl.Rule(self.temperature['very_high'] & self.cough['very_high'] & self.fatigue['very_high'], self.diagnosis['pneumonia']),
             ctrl.Rule(self.temperature['high'] & self.cough['high'] & self.fatigue['high'], self.diagnosis['pneumonia']),
             ctrl.Rule(self.temperature['high'] & self.headache['high'] & self.cough['medium'], self.diagnosis['pneumonia']),
             ctrl.Rule(self.temperature['high'] & self.cough['very_high'] & self.sore_throat['very_high'], self.diagnosis['pneumonia']),
-            
-            # Emphasize severe symptoms
             ctrl.Rule(self.temperature['very_high'] & self.cough['very_high'], self.diagnosis['pneumonia']),
             ctrl.Rule(self.temperature['very_high'] & self.headache['very_high'], self.diagnosis['pneumonia']),
             ctrl.Rule(self.temperature['very_high'] & self.fatigue['very_high'], self.diagnosis['pneumonia']),
@@ -174,41 +162,27 @@ class IntuitionisticFuzzyDiagnosis:
     def __init__(self):
         self.symptoms = ['temperature', 'headache', 'cough', 'fatigue', 'sore_throat']
         self.diagnoses = ['Healthy', 'Common Cold', 'Flu', 'Allergy', 'Bronchitis', 'Pneumonia']
-        
-        # Revised R Membership matrix
+
+        # R Membership matrix
         self.R_membership = np.array([
-            [0.4, 0.6, 0.8, 0.4, 0.6, 0.9],  # Temperature
-            [0.1, 0.6, 0.7, 0.3, 0.7, 0.8],  # Headache
-            [0.1, 0.7, 0.8, 0.6, 0.8, 0.9],  # Cough
-            [0.2, 0.5, 0.7, 0.3, 0.7, 0.8],  # Fatigue
-            [0.1, 0.7, 0.6, 0.5, 0.7, 0.8]   # Sore Throat
+            [0.2, 0.4, 0.5, 0.4, 0.5, 0.9],  # Temperature
+            [0.1, 0.3, 0.6, 0.3, 0.6, 0.7],  # Headache
+            [0.3, 0.5, 0.8, 0.9, 0.7, 0.9],  # Cough
+            [0.2, 0.2, 0.6, 0.4, 0.5, 0.7],  # Fatigue
+            [0.1, 0.4, 0.4, 0.8, 0.6, 0.8]   # Sore Throat
         ])
-        
+
         # Non-membership matrix, complement of the membership matrix
         self.R_non_membership = 1 - self.R_membership
 
-        # Weights for each symptom relative to each diagnosis
-        self.weights = np.array([
-            [0.5, 0.7, 0.9, 0.6, 0.8, 1.0],  # Temperature Weight
-            [0.4, 0.6, 0.7, 0.5, 0.7, 0.8],  # Headache Weight
-            [0.4, 0.8, 1.0, 0.6, 0.9, 1.0],  # Cough Weight
-            [0.3, 0.5, 0.8, 0.4, 0.7, 0.9],  # Fatigue Weight
-            [0.3, 0.7, 0.7, 0.6, 0.7, 0.8]   # Sore Throat Weight
-        ])
-
     def max_min_max_composition(self, Q_membership, Q_non_membership):
-        T_membership = np.zeros((Q_membership.shape[0], self.R_membership.shape[1]))
-        T_non_membership = np.zeros((Q_membership.shape[0], self.R_membership.shape[1]))
-        
-        # Apply weights to the R_membership matrix before composition
-        weighted_R_membership = self.R_membership * self.weights
-        logging.debug("Weighted R Membership Matrix: %s", weighted_R_membership)
+        T_membership = np.zeros(self.R_membership.shape[1])
+        T_non_membership = np.zeros(self.R_membership.shape[1])
 
-        for i in range(Q_membership.shape[0]):
-            for j in range(weighted_R_membership.shape[1]):
-                T_membership[i, j] = np.max(np.minimum(Q_membership[i], weighted_R_membership[:, j]))
-                T_non_membership[i, j] = np.min(np.maximum(Q_non_membership[i], self.R_non_membership[:, j]))
-        
+        for j in range(self.R_membership.shape[1]):
+            T_membership[j] = np.max(np.minimum(Q_membership, self.R_membership[:, j]))
+            T_non_membership[j] = np.min(np.maximum(Q_non_membership, self.R_non_membership[:, j]))
+
         logging.debug("T Membership Matrix: %s", T_membership)
         logging.debug("T Non-Membership Matrix: %s", T_non_membership)
 
@@ -219,30 +193,34 @@ class IntuitionisticFuzzyDiagnosis:
         pi_T[pi_T < 0] = 0
 
         SR = T_membership - T_non_membership + pi_T * (1 - np.abs(T_membership - T_non_membership))
-        
+
         logging.debug("Pi_T: %s", pi_T)
         logging.debug("SR Values: %s", SR)
-        
+
         return SR
 
     def create_q_matrix(self, patients):
         q_matrix_membership = []
         q_matrix_non_membership = []
+
         for patient in patients:
             membership_row = []
             non_membership_row = []
+
             if isinstance(patient['symptoms'], list):
                 patient_symptoms_dict = dict(zip(self.symptoms, patient['symptoms']))
             else:
                 patient_symptoms_dict = patient['symptoms']
 
-            for symptom, value in patient_symptoms_dict.items():
+            for symptom in self.symptoms:
+                value = patient_symptoms_dict.get(symptom, 0)
                 memberships = self.linear_membership(value, symptom)
                 membership_row.append(memberships[0])
                 non_membership_row.append(memberships[1])
+
             q_matrix_membership.append(membership_row)
             q_matrix_non_membership.append(non_membership_row)
-        
+
         logging.debug("Q Membership Matrix: %s", np.array(q_matrix_membership))
         logging.debug("Q Non-Membership Matrix: %s", np.array(q_matrix_non_membership))
 
@@ -259,9 +237,12 @@ class IntuitionisticFuzzyDiagnosis:
             else:
                 membership = 1.0
         else:
-            membership = max(0.8, min(1, value / 10))
+            membership = min(0.1 * value, 1.0)
+
+        membership = max(0.0, min(membership, 1.0))
         non_membership = 1 - membership
-        return (membership, non_membership)
+    
+        return membership, non_membership
 
     def diagnose(self, patient_symptoms):
         if isinstance(patient_symptoms, list):
@@ -280,12 +261,12 @@ class IntuitionisticFuzzyDiagnosis:
         SR = self.calculate_SR(T_membership, T_non_membership)
 
         diagnosis_result = []
-        for i in range(T_membership.shape[1]):
+        for i in range(len(self.diagnoses)):
             diagnosis_result.append({
                 'diagnosis': self.diagnoses[i],
-                'membership': round(float(T_membership[0, i]), 2),
-                'non_membership': round(float(T_non_membership[0, i]), 2),
-                'SR': round(float(SR[0, i]), 2)
+                'membership': round(float(T_membership[i]), 2),
+                'non_membership': round(float(T_non_membership[i]), 2),
+                'SR': round(float(SR[i]), 2)
             })
 
         logging.debug(f"Diagnosis results: {diagnosis_result}")
